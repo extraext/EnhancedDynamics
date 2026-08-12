@@ -1,0 +1,7 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <bool name="allowInAllModes">1</bool>
+    <keycode name="emergencyResetKey">KeypadMultiply</keycode>
+    <keycode name="toggleGuiKey">F8</keycode>
+    <keycode name="toggleGuiKeyAlt">KeypadPlus</keycode>
+</config>
