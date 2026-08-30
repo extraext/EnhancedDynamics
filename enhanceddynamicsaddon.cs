@@ -67,6 +67,7 @@ namespace EnhancedDynamics
 
         private Vector3 currentTerrainCorrection = Vector3.zero;
         private Vector3 terrainCorrectionVel = Vector3.zero;
+		private static readonly RaycastHit[] terrainHits = new RaycastHit[16];
 
         private float shakeSeed = 0.0f;
 
@@ -380,22 +381,43 @@ namespace EnhancedDynamics
             Vector3 targetCorrection = Vector3.zero;
             if (distToCam > safeOffset && distToCam > 0.1f)
             {
-                Vector3 rayStart = visualOrigin + (dirToCam.normalized * safeOffset);
+                Vector3 rayDir = dirToCam.normalized;
+                Vector3 rayStart = visualOrigin + (rayDir * safeOffset);
                 float rayDistance = distToCam - safeOffset;
-                int terrainMask = (1 << 10) | (1 << 15);
 
-                if (Physics.Raycast(rayStart, dirToCam.normalized, out RaycastHit hit, rayDistance, terrainMask))
+                int terrainMask = 1 << 15;
+
+                int hitCount = Physics.RaycastNonAlloc(rayStart, rayDir, terrainHits, rayDistance, terrainMask);
+                float closestDist = float.MaxValue;
+                bool foundValidTerrainHit = false;
+                RaycastHit bestHit = default;
+
+                for (int i = 0; i < hitCount; i++)
                 {
-                    Part hitPart = hit.collider != null ? hit.collider.GetComponentInParent<Part>() : null;
-                    if (hitPart == null)
+                    RaycastHit h = terrainHits[i];
+                    if (h.collider == null || h.collider.isTrigger) continue;
+
+                    if (h.collider.GetComponentInParent<Part>() != null) continue;
+                    if (h.collider.GetComponentInParent<Vessel>() != null) continue;
+                    if (h.collider.transform.root == vessel.transform.root) continue;
+
+                    if (h.distance < closestDist)
                     {
-                        Vector3 desiredPos = hit.point + (hit.normal * 0.15f) - (dirToCam.normalized * 0.15f);
-                        targetCorrection = desiredPos - targetCamPos;
+                        closestDist = h.distance;
+                        bestHit = h;
+                        foundValidTerrainHit = true;
                     }
+                }
+
+                if (foundValidTerrainHit)
+                {
+                    Vector3 desiredPos = bestHit.point + (bestHit.normal * 0.15f) - (rayDir * 0.15f);
+                    targetCorrection = desiredPos - targetCamPos;
                 }
             }
 
-            currentTerrainCorrection = Vector3.SmoothDamp(currentTerrainCorrection, targetCorrection, ref terrainCorrectionVel, 0.05f, 50f, dt);
+            currentTerrainCorrection = targetCorrection;
+            terrainCorrectionVel = Vector3.zero;
             Vector3 finalCamPos = targetCamPos + currentTerrainCorrection;
 
             Quaternion blendedRotOffset = Quaternion.Slerp(Quaternion.identity, dynamicRotOffset, settleBlend);
